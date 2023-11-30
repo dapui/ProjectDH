@@ -1,11 +1,9 @@
 package naverworks.common.util;
 
-import egovframework.naverworks.bot.service.impl.BotMessageServiceImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;

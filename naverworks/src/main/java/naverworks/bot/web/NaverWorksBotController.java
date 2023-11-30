@@ -1,11 +1,11 @@
 package naverworks.bot.web;
 
-import egovframework.naverworks.bot.service.BotMessageService;
-import egovframework.naverworks.bot.vo.BoardRequestDataVO;
-import egovframework.naverworks.common.service.JWTService;
-import egovframework.naverworks.bot.vo.ApprovalRequestDataVO;
-import egovframework.naverworks.common.vo.NaverWorksAppInfoVO;
-import egovframework.naverworks.common.vo.ResponseDataVO;
+import naverworks.bot.service.BotMessageService;
+import naverworks.bot.vo.BoardRequestDataVO;
+import naverworks.common.service.JWTService;
+import naverworks.bot.vo.ApprovalRequestDataVO;
+import naverworks.common.vo.NaverWorksAppInfoVO;
+import naverworks.common.vo.ResponseDataVO;
 import lombok.extern.log4j.Log4j2;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.annotation.Resource;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 
 @Log4j2
@@ -68,6 +70,11 @@ public class NaverWorksBotController {
     @PostMapping(value = "/board", produces = "application/json;charset=utf-8")
     public JSONObject sendBoardBot(@RequestBody BoardRequestDataVO requestData) {
         logger.debug("NAVER WORKS Bot [POST /naverworksbots/board] started");
+
+        // 요청받은 RequestBody의 데이터 중 선택적 값 처리 = 알림 메시지를 받을 구성원의 cn
+        Optional<List<String>> cnOptional = Optional.ofNullable(requestData.getCn());
+        List<String> cn = cnOptional.orElse(Arrays.asList());
+        requestData.setCn(cn);
 
         JSONObject result = new JSONObject();
         String botId = naverWorksAppInfo.getBoardBotId();

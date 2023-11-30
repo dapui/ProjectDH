@@ -1,20 +1,21 @@
 package naverworks.bot.service.impl;
 
-import egovframework.naverworks.bot.service.BotMessageService;
-import egovframework.naverworks.bot.vo.BirthdayUserInfoVO;
-import egovframework.naverworks.bot.vo.BoardRequestDataVO;
-import egovframework.naverworks.common.util.DateFormatUtils;
-import egovframework.naverworks.common.util.WorksClientUtils;
-import egovframework.naverworks.bot.vo.ApprovalRequestDataVO;
-import egovframework.naverworks.common.vo.NaverWorksAppInfoVO;
-import egovframework.naverworks.common.vo.ResponseDataVO;
+import naverworks.bot.service.BotMessageService;
+import naverworks.bot.service.JsonTemplateService;
+import naverworks.bot.vo.BirthdayUserInfoVO;
+import naverworks.bot.vo.BoardRequestDataVO;
+import naverworks.common.util.DateFormatUtils;
+import naverworks.common.util.WorksClientUtils;
+import naverworks.bot.vo.ApprovalRequestDataVO;
+import naverworks.common.vo.NaverWorksAppInfoVO;
+import naverworks.common.vo.ResponseDataVO;
 import lombok.extern.log4j.Log4j2;
-import org.codehaus.jackson.map.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.Resource;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -36,6 +37,9 @@ public class BotMessageServiceImpl implements BotMessageService {
     @Autowired
     private DateFormatUtils dateFormatUtils;
 
+    @Resource(name = "JsonTemplateService")
+    private JsonTemplateService jsonTemplateService;
+
     private String accessToken = "";
 
     /* 전자결재 알림 봇 호출 */
@@ -55,9 +59,9 @@ public class BotMessageServiceImpl implements BotMessageService {
 
         // 간편결재 url 값 유무에 따라 메세지 템플릿 지정
         if (approvalRequestData.getEasyApproval().equals("none")) {
-            message = approvalWithoutEasyApprovalMessageTemplate(approvalRequestData);
+            message = jsonTemplateService.approvalWithoutEasyApprovalMessageTemplate(approvalRequestData);
         } else {
-            message = approvalMessageTemplate(approvalRequestData);
+            message = jsonTemplateService.approvalMessageTemplate(approvalRequestData);
         }
 
         try {
@@ -125,7 +129,7 @@ public class BotMessageServiceImpl implements BotMessageService {
 
                 // 전직원에게 알림 보내기
                 for (String user : targetMessageUsers) {
-                    message = birthdayMessageTemplate(userInfo);
+                    message = jsonTemplateService.birthdayMessageTemplate(userInfo);
                     params.put("content", content);
                     params.put("accountId", user);
                     params.put("content", message);
@@ -164,13 +168,23 @@ public class BotMessageServiceImpl implements BotMessageService {
         accessToken = token;
         ResponseDataVO responseData = null;
         // 메시지를 전송할 유저 리스트
-        List<String> targetMessageUsers = boardRequestData.getCn();
+        List<String> targetMessageUsers;
+        // boardRequestData의 cn 유무에 따라 메시지를 전송할 유저 리스트 지정 (유: 해당 직원 리스트 / 무: 전직원)
+        if (boardRequestData.getCn().isEmpty() || boardRequestData.getCn() == null) {
+            // 메시지를 전송할 전직원 리스트
+            List<Map<String, Object>> userDataList = searchMembers();
+            // 전직원의 userId 리스트
+            targetMessageUsers = searchMembersUserId(userDataList);
+        } else {
+            targetMessageUsers = boardRequestData.getCn();
+        }
+
         // 메시지 전송 API 호출시 Request Body에 들어갈 데이터
         Map<String, Object> params = new HashMap<String, Object>();
         Map<String, Object> content = new HashMap<String, Object>();
 
         try {
-            Map<String, Object> message = boardMessageTemplate(boardRequestData);
+            Map<String, Object> message = jsonTemplateService.boardMessageTemplate(boardRequestData);
             // 메시지 보내기
             for (String user : targetMessageUsers) {
                 params.put("content", content);
@@ -198,553 +212,6 @@ public class BotMessageServiceImpl implements BotMessageService {
         }
     }
 
-    /*  전자결재 알림 메세지 템플릿 JSON */
-    @Override
-    public Map<String, Object> approvalMessageTemplate(ApprovalRequestDataVO approvalInfo) {
-        logger.debug("BotMessageServiceImpl.approvalMessageTemplate() started");
-
-        String status = approvalInfo.getStatus();
-        String docTitle = approvalInfo.getDocTitle();
-        String writerName = approvalInfo.getWriterName();
-        String startDate = approvalInfo.getStartDate();
-        String targetUri = approvalInfo.getTargetUri();
-        String easyApproval = approvalInfo.getEasyApproval();
-
-        StringBuffer message = new StringBuffer();
-        message.append("{");
-        message.append(" \"type\": \"flex\",");
-        message.append(" \"altText\": \"[결재 " + status + "] 문서가 도착했습니다.\",");
-        message.append(" \"contents\": {");
-        message.append("    \"type\": \"bubble\",");
-        message.append("    \"size\": \"kilo\",");
-        message.append("    \"header\": {");
-        message.append("        \"type\": \"box\",");
-        message.append("        \"layout\": \"baseline\",");
-        message.append("        \"contents\": [");
-        message.append("        {");
-        message.append("            \"type\": \"text\",");
-        message.append("            \"text\": \"[결재 " + status + "] \\r\\n문서가 도착했습니다.\",");
-        message.append("            \"wrap\": true,");
-        message.append("            \"size\": \"md\",");
-        message.append("            \"color\": \"#ffffff\",");
-        message.append("            \"align\": \"center\",");
-        message.append("            \"weight\": \"bold\"");
-        message.append("        }");
-        message.append("        ],");
-        message.append("        \"backgroundColor\": \"#146bb8\"");
-        message.append("    },");
-        message.append("    \"body\": {");
-        message.append("        \"type\": \"box\",");
-        message.append("        \"layout\": \"vertical\",");
-        message.append("        \"contents\": [");
-        message.append("        {");
-        message.append("            \"type\": \"box\",");
-        message.append("            \"layout\": \"vertical\",");
-        message.append("            \"contents\": [");
-        message.append("                {");
-        message.append("                \"type\": \"box\",");
-        message.append("                \"layout\": \"horizontal\",");
-        message.append("                \"contents\": [");
-        message.append("                {");
-        message.append("                    \"type\": \"text\",");
-        message.append("                    \"text\": \"제목\",");
-        message.append("                    \"size\": \"sm\",");
-        message.append("                    \"weight\": \"bold\",");
-        message.append("                    \"gravity\": \"center\",");
-        message.append("                    \"flex\": 3,");
-        message.append("                    \"color\": \"#146bb8\"");
-        message.append("                },");
-        message.append("                {");
-        message.append("                    \"type\": \"text\",");
-        message.append("                    \"text\": \"" + docTitle + "\",");
-        message.append("                    \"wrap\": false,");  // true:말줄임표X, false:말줄임표O
-        message.append("                    \"weight\": \"bold\",");
-        message.append("                    \"size\": \"sm\",");
-        message.append("                    \"align\": \"end\",");
-        message.append("                    \"flex\": 7");
-        message.append("                }");
-        message.append("                ]");
-        message.append("            },");
-        message.append("            {");
-        message.append("                \"type\": \"separator\",");
-        message.append("                \"margin\": \"lg\"");
-        message.append("            },");
-        message.append("            {");
-        message.append("                \"type\": \"box\",");
-        message.append("                \"layout\": \"baseline\",");
-        message.append("                \"contents\": [");
-        message.append("                {");
-        message.append("                    \"type\": \"text\",");
-        message.append("                    \"text\": \"기안자\",");
-        message.append("                    \"size\": \"sm\",");
-        message.append("                    \"weight\": \"bold\",");
-        message.append("                    \"color\": \"#146bb8\",");
-        message.append("                    \"gravity\": \"center\",");
-        message.append("                    \"flex\": 3");
-        message.append("                },");
-        message.append("                {");
-        message.append("                    \"type\": \"text\",");
-        message.append("                    \"text\": \"" + writerName + "\",");
-        message.append("                    \"weight\": \"bold\",");
-        message.append("                    \"size\": \"sm\",");
-        message.append("                    \"align\": \"end\",");
-        message.append("                    \"flex\": 7");
-        message.append("                }");
-        message.append("                ],");
-        message.append("                \"margin\": \"lg\"");
-        message.append("            },");
-        message.append("            {");
-        message.append("                \"type\": \"separator\",");
-        message.append("                \"margin\": \"lg\"");
-        message.append("            },");
-        message.append("            {");
-        message.append("                \"type\": \"box\",");
-        message.append("                \"layout\": \"baseline\",");
-        message.append("                \"contents\": [");
-        message.append("                {");
-        message.append("                    \"type\": \"text\",");
-        message.append("                    \"text\": \"기안일시\",");
-        message.append("                    \"size\": \"sm\",");
-        message.append("                    \"weight\": \"bold\",");
-        message.append("                    \"color\": \"#146bb8\",");
-        message.append("                    \"gravity\": \"center\",");
-        message.append("                    \"flex\": 3");
-        message.append("                },");
-        message.append("                {");
-        message.append("                    \"type\": \"text\",");
-        message.append("                    \"text\": \"" + startDate + "\",");
-        message.append("                    \"weight\": \"bold\",");
-        message.append("                    \"size\": \"sm\",");
-        message.append("                    \"align\": \"end\",");
-        message.append("                    \"flex\": 7");
-        message.append("                }");
-        message.append("                ],");
-        message.append("                \"margin\": \"lg\"");
-        message.append("            }");
-        message.append("            ],");
-        message.append("            \"paddingStart\": \"5px\",");
-        message.append("            \"paddingEnd\": \"5px\"");
-        message.append("        },");
-        message.append("        {");
-        message.append("            \"type\": \"box\",");
-        message.append("            \"layout\": \"vertical\",");
-        message.append("            \"contents\": [");
-        message.append("            {");
-        message.append("                \"type\": \"button\",");
-        message.append("                \"action\": {");
-        message.append("                    \"type\": \"uri\",");
-        message.append("                    \"label\": \"결재 문서함\",");
-        message.append("                    \"uri\": \"" + targetUri + "\"");
-        message.append("                },");
-        message.append("                \"style\": \"primary\",");
-        message.append("                \"color\": \"#146bb8\",");
-        message.append("                \"margin\": \"none\",");
-        message.append("                \"height\": \"sm\"");
-        message.append("            },");
-        message.append("            {");
-        message.append("                \"type\": \"button\",");
-        message.append("                \"action\": {");
-        message.append("                    \"type\": \"uri\",");
-        message.append("                    \"uri\": \"" + easyApproval + "\",");
-        message.append("                    \"label\": \"간편 결재 진행\"");
-        message.append("                },");
-        message.append("                \"style\": \"secondary\",");
-        message.append("                \"color\": \"#f4f4f4\",");
-        message.append("                \"margin\": \"md\",");
-        message.append("                \"height\": \"sm\"");
-        message.append("            }");
-        message.append("            ],");
-        message.append("            \"margin\": \"xl\"");
-        message.append("        }");
-        message.append("        ]");
-        message.append("    }");
-        message.append("  }");
-        message.append("}");
-
-        Map<String, Object> messageContent = null;
-        try {
-            messageContent = jsonToMap(message);
-        } catch (Exception e) {
-            logger.error(e.getMessage(), e);
-        }
-
-        logger.debug("BotMessageServiceImpl.approvalMessageTemplate() ended");
-        return messageContent;
-    }
-
-    /*  전자결재 알림 메세지 템플릿 JSON - API 호출 시 간편 결재 url이 없을 경우 */
-    @Override
-    public Map<String, Object> approvalWithoutEasyApprovalMessageTemplate(ApprovalRequestDataVO approvalInfo) {
-        logger.debug("BotMessageServiceImpl.approvalMessageTemplate() started");
-
-        String status = approvalInfo.getStatus();
-        String docTitle = approvalInfo.getDocTitle();
-        String writerName = approvalInfo.getWriterName();
-        String startDate = approvalInfo.getStartDate();
-        String targetUri = approvalInfo.getTargetUri();
-
-        StringBuffer message = new StringBuffer();
-        message.append("{");
-        message.append(" \"type\": \"flex\",");
-        message.append(" \"altText\": \"[결재 " + status + "] 문서가 도착했습니다.\",");
-        message.append(" \"contents\": {");
-        message.append("    \"type\": \"bubble\",");
-        message.append("    \"size\": \"kilo\",");
-        message.append("    \"header\": {");
-        message.append("        \"type\": \"box\",");
-        message.append("        \"layout\": \"baseline\",");
-        message.append("        \"contents\": [");
-        message.append("        {");
-        message.append("            \"type\": \"text\",");
-        message.append("            \"text\": \"[결재 " + status + "] \\r\\n문서가 도착했습니다.\",");
-        message.append("            \"wrap\": true,");
-        message.append("            \"size\": \"md\",");
-        message.append("            \"color\": \"#ffffff\",");
-        message.append("            \"align\": \"center\",");
-        message.append("            \"weight\": \"bold\"");
-        message.append("        }");
-        message.append("        ],");
-        message.append("        \"backgroundColor\": \"#146bb8\"");
-        message.append("    },");
-        message.append("    \"body\": {");
-        message.append("        \"type\": \"box\",");
-        message.append("        \"layout\": \"vertical\",");
-        message.append("        \"contents\": [");
-        message.append("        {");
-        message.append("            \"type\": \"box\",");
-        message.append("            \"layout\": \"vertical\",");
-        message.append("            \"contents\": [");
-        message.append("                {");
-        message.append("                \"type\": \"box\",");
-        message.append("                \"layout\": \"horizontal\",");
-        message.append("                \"contents\": [");
-        message.append("                {");
-        message.append("                    \"type\": \"text\",");
-        message.append("                    \"text\": \"제목\",");
-        message.append("                    \"size\": \"sm\",");
-        message.append("                    \"weight\": \"bold\",");
-        message.append("                    \"gravity\": \"center\",");
-        message.append("                    \"flex\": 3,");
-        message.append("                    \"color\": \"#146bb8\"");
-        message.append("                },");
-        message.append("                {");
-        message.append("                    \"type\": \"text\",");
-        message.append("                    \"text\": \"" + docTitle + "\",");
-        message.append("                    \"wrap\": false,");  // true:말줄임표X, false:말줄임표O
-        message.append("                    \"weight\": \"bold\",");
-        message.append("                    \"size\": \"sm\",");
-        message.append("                    \"align\": \"end\",");
-        message.append("                    \"flex\": 7");
-        message.append("                }");
-        message.append("                ]");
-        message.append("            },");
-        message.append("            {");
-        message.append("                \"type\": \"separator\",");
-        message.append("                \"margin\": \"lg\"");
-        message.append("            },");
-        message.append("            {");
-        message.append("                \"type\": \"box\",");
-        message.append("                \"layout\": \"baseline\",");
-        message.append("                \"contents\": [");
-        message.append("                {");
-        message.append("                    \"type\": \"text\",");
-        message.append("                    \"text\": \"기안자\",");
-        message.append("                    \"size\": \"sm\",");
-        message.append("                    \"weight\": \"bold\",");
-        message.append("                    \"color\": \"#146bb8\",");
-        message.append("                    \"gravity\": \"center\",");
-        message.append("                    \"flex\": 3");
-        message.append("                },");
-        message.append("                {");
-        message.append("                    \"type\": \"text\",");
-        message.append("                    \"text\": \"" + writerName + "\",");
-        message.append("                    \"weight\": \"bold\",");
-        message.append("                    \"size\": \"sm\",");
-        message.append("                    \"align\": \"end\",");
-        message.append("                    \"flex\": 7");
-        message.append("                }");
-        message.append("                ],");
-        message.append("                \"margin\": \"lg\"");
-        message.append("            },");
-        message.append("            {");
-        message.append("                \"type\": \"separator\",");
-        message.append("                \"margin\": \"lg\"");
-        message.append("            },");
-        message.append("            {");
-        message.append("                \"type\": \"box\",");
-        message.append("                \"layout\": \"baseline\",");
-        message.append("                \"contents\": [");
-        message.append("                {");
-        message.append("                    \"type\": \"text\",");
-        message.append("                    \"text\": \"기안일시\",");
-        message.append("                    \"size\": \"sm\",");
-        message.append("                    \"weight\": \"bold\",");
-        message.append("                    \"color\": \"#146bb8\",");
-        message.append("                    \"gravity\": \"center\",");
-        message.append("                    \"flex\": 3");
-        message.append("                },");
-        message.append("                {");
-        message.append("                    \"type\": \"text\",");
-        message.append("                    \"text\": \"" + startDate + "\",");
-        message.append("                    \"weight\": \"bold\",");
-        message.append("                    \"size\": \"sm\",");
-        message.append("                    \"align\": \"end\",");
-        message.append("                    \"flex\": 7");
-        message.append("                }");
-        message.append("                ],");
-        message.append("                \"margin\": \"lg\"");
-        message.append("            }");
-        message.append("            ],");
-        message.append("            \"paddingStart\": \"5px\",");
-        message.append("            \"paddingEnd\": \"5px\"");
-        message.append("        },");
-        message.append("        {");
-        message.append("            \"type\": \"box\",");
-        message.append("            \"layout\": \"vertical\",");
-        message.append("            \"contents\": [");
-        message.append("            {");
-        message.append("                \"type\": \"button\",");
-        message.append("                \"action\": {");
-        message.append("                    \"type\": \"uri\",");
-        message.append("                    \"uri\": \"" + targetUri + "\",");
-        message.append("                    \"label\": \"결재 문서함\"");
-        message.append("                },");
-        message.append("                \"style\": \"secondary\",");
-        message.append("                \"color\": \"#f4f4f4\",");
-        message.append("                \"margin\": \"md\",");
-        message.append("                \"height\": \"sm\"");
-        message.append("            }");
-        message.append("            ],");
-        message.append("            \"margin\": \"xl\"");
-        message.append("        }");
-        message.append("        ]");
-        message.append("    }");
-        message.append("  }");
-        message.append("}");
-
-        Map<String, Object> messageContent = null;
-        try {
-            messageContent = jsonToMap(message);
-        } catch (Exception e) {
-            logger.error(e.getMessage(), e);
-        }
-
-        logger.debug("BotMessageServiceImpl.approvalMessageTemplate() ended");
-        return messageContent;
-    }
-
-    /* 생일자 알림 메세지 템플릿 JSON */
-    @Override
-    public Map<String, Object> birthdayMessageTemplate(BirthdayUserInfoVO userInfo) throws Exception {
-        logger.debug("BotMessageServiceImpl.birthdayMessageTemplate() started");
-
-        String birthday = dateFormatUtils.dateFormatMMDD(userInfo.getBirthday());
-        System.out.println("birthday = " + birthday);
-        String image = userInfo.getImage();
-        String deptName = userInfo.getDeptName();
-        String userName = userInfo.getUserName();
-
-        StringBuffer message = new StringBuffer();
-        message.append("{");
-        message.append(" \"type\": \"flex\",");
-        message.append(" \"altText\": \"오늘의 생일자를 알려드립니다.\",");
-        message.append(" \"contents\": {");
-        message.append("   \"type\": \"bubble\",");
-        message.append("   \"size\": \"kilo\",");
-        message.append("   \"body\": {");
-        message.append("       \"type\": \"box\",");
-        message.append("       \"layout\": \"vertical\",");
-        message.append("       \"contents\": [");
-        message.append("       {");
-        message.append("           \"text\": \"" + birthday + "\",");
-        message.append("           \"type\": \"text\",");
-        message.append("           \"size\": \"lg\",");
-        message.append("           \"align\": \"center\",");
-        message.append("           \"weight\": \"bold\",");
-        message.append("           \"color\": \"#333333\"");
-        message.append("       },");
-        message.append("       {");
-        message.append("           \"type\": \"text\",");
-        message.append("           \"text\": \"오늘의 생일자를 알려드립니다.\",");
-        message.append("           \"color\": \"#146bb8\",");
-        message.append("           \"weight\": \"bold\",");
-        message.append("           \"size\": \"sm\",");
-        message.append("           \"align\": \"center\"");
-        message.append("       },");
-        message.append("       {");
-        message.append("           \"type\": \"box\",");
-        message.append("           \"layout\": \"vertical\",");
-        message.append("           \"contents\": [");
-        message.append("           {");
-        message.append("               \"type\": \"image\",");
-        message.append("               \"url\": \"" + image + "\",");  // 생일자 사진 가져오기
-        message.append("               \"size\": \"sm\",");
-        message.append("               \"aspectMode\": \"cover\",");
-        message.append("               \"align\": \"center\"");
-        message.append("           }");
-        message.append("           ],");
-        message.append("           \"margin\": \"xxl\",");
-        message.append("           \"cornerRadius\": \"50px\",");
-        message.append("           \"borderWidth\": \"1px\",");
-        message.append("           \"borderColor\": \"#22222220\",");
-        message.append("           \"height\": \"60px\",");
-        message.append("           \"width\": \"60px\",");
-        message.append("           \"offsetStart\": \"85px\",");
-        message.append("           \"offsetEnd\": \"85px\"");
-        message.append("       },");
-        message.append("       {");
-        message.append("           \"type\": \"text\",");
-        message.append("           \"text\": \"" + deptName + "\",");
-        message.append("           \"color\": \"#aaaaaa\",");
-        message.append("           \"size\": \"sm\",");
-        message.append("           \"wrap\": true,");
-        message.append("           \"align\": \"center\",");
-        message.append("           \"margin\": \"lg\"");
-        message.append("       },");
-        message.append("       {");
-        message.append("           \"type\": \"text\",");
-        message.append("           \"text\": \"" + userName + "\",");
-        message.append("           \"color\": \"#333333\",");
-        message.append("           \"weight\": \"bold\",");
-        message.append("           \"size\": \"lg\",");
-        message.append("           \"margin\": \"md\",");
-        message.append("           \"align\": \"center\"");
-        message.append("       }");
-        message.append("       ]");
-        message.append("     }");
-        message.append("   }");
-        message.append("}");
-
-        Map<String, Object> messageContent = null;
-        try {
-            messageContent = jsonToMap(message);
-        } catch (Exception e) {
-            logger.error(e.getMessage(), e);
-        }
-
-        logger.debug("BotMessageServiceImpl.birthdayMessageTemplate() ended");
-
-        return messageContent;
-    }
-
-    /* 게시판 알림 메세지 템플릿 JSON */
-    @Override
-    public Map<String, Object> boardMessageTemplate(BoardRequestDataVO boardInfo) throws Exception {
-        logger.debug("BotMessageServiceImpl.boardMessageTemplate() started");
-
-        String status = boardInfo.getStatus();
-        String docTitle = boardInfo.getDocTitle();
-        String deptName = boardInfo.getDeptName();
-        String writerName = boardInfo.getWriterName();
-        String writeDate = dateFormatUtils.dateFormatYYYYMMDD(boardInfo.getWriteDate());
-        String targetUri = boardInfo.getTargetUri();
-
-        StringBuffer message = new StringBuffer();
-        message.append("{");
-        message.append("    \"type\": \"flex\",");
-        message.append("    \"altText\": \"게시판 알림이 도착했습니다.\",");
-        message.append("    \"contents\": {");
-        message.append("        \"type\": \"bubble\",");
-        message.append("        \"body\": {");
-        message.append("            \"type\": \"box\",");
-        message.append("            \"layout\": \"vertical\",");
-        message.append("            \"contents\": [");
-        message.append("            {");
-        message.append("                \"type\": \"text\",");
-        message.append("                \"text\": \"" + status + "\",");
-        message.append("                \"size\": \"sm\",");
-        message.append("                \"color\": \"#146bb8\",");
-        message.append("                \"weight\": \"bold\"");
-        message.append("            },");
-        message.append("            {");
-        message.append("                \"text\": \"" + docTitle + "\",");
-        message.append("                \"type\": \"text\",");
-        message.append("                \"margin\": \"lg\",");
-        message.append("                \"weight\": \"bold\",");
-        message.append("                \"color\": \"#222222\",");
-        message.append("                \"size\": \"md\"");
-        message.append("            },");
-        message.append("            {");
-        message.append("                \"type\": \"separator\",");
-        message.append("                \"margin\": \"xxl\"");
-        message.append("            },");
-        message.append("            {");
-        message.append("                \"layout\": \"horizontal\",");
-        message.append("                \"type\": \"box\",");
-        message.append("                \"contents\": [");
-        message.append("                {");
-        message.append("                    \"layout\": \"vertical\",");
-        message.append("                    \"type\": \"box\",");
-        message.append("                    \"contents\": [");
-        message.append("                    {");
-        message.append("                        \"text\": \"" + deptName + " " + writerName + "\",");
-        message.append("                        \"type\": \"text\",");
-        message.append("                        \"size\": \"xs\",");
-        message.append("                        \"color\": \"#999999\",");
-        message.append("                        \"align\": \"start\"");
-        message.append("                    }");
-        message.append("                    ]");
-        message.append("                },");
-        message.append("                {");
-        message.append("                    \"layout\": \"vertical\",");
-        message.append("                    \"type\": \"box\",");
-        message.append("                    \"contents\": [");
-        message.append("                    {");
-        message.append("                        \"text\": \"" + writeDate + "\",");
-        message.append("                        \"type\": \"text\",");
-        message.append("                        \"size\": \"xs\",");
-        message.append("                        \"color\": \"#999999\",");
-        message.append("                        \"align\": \"end\"");
-        message.append("                    }");
-        message.append("                    ],");
-        message.append("                    \"width\": \"80px\"");
-        message.append("                }");
-        message.append("                ],");
-        message.append("                \"margin\": \"md\"");
-        message.append("            },");
-        message.append("            {");
-        message.append("                \"layout\": \"vertical\",");
-        message.append("                \"type\": \"box\",");
-        message.append("                \"contents\": [");
-        message.append("                {");
-        message.append("                    \"type\": \"button\",");
-        message.append("                    \"action\": {");
-        message.append("                        \"type\": \"uri\",");
-        message.append("                        \"label\": \"게시글로 이동\",");
-        message.append("                        \"uri\": \"" + targetUri + "\"");
-        message.append("                    },");
-        message.append("                    \"style\": \"primary\",");
-        message.append("                    \"color\": \"#146bb8\",");
-        message.append("                    \"margin\": \"none\",");
-        message.append("                    \"height\": \"sm\"");
-        message.append("                }");
-        message.append("                ],");
-        message.append("                \"margin\": \"xl\"");
-        message.append("            }");
-        message.append("            ]");
-        message.append("        }");
-        message.append("    }");
-        message.append("}");
-
-        Map<String, Object> messageContent = null;
-        try {
-            messageContent = jsonToMap(message);
-        } catch (Exception e) {
-            logger.error(e.getMessage(), e);
-        }
-
-        logger.debug("BotMessageServiceImpl.boardMessageTemplate() ended");
-
-        return messageContent;
-    }
-
-    /* json -> map 변환 */
-    @Override
-    public Map<String, Object> jsonToMap(StringBuffer json) throws Exception {
-        ObjectMapper objectMapper = new ObjectMapper();
-        return objectMapper.readValue(json.toString(), Map.class);
-    }
-
     /* NAVER WORKS API 호출하여 구성원의 프로필 정보 조회 */
     @Override
     public BirthdayUserInfoVO searchUserInfo(String userId) {
@@ -770,7 +237,7 @@ public class BotMessageServiceImpl implements BotMessageService {
             // 이름 정보
             Map<String, Object> userNameData = (Map<String, Object>) responseMap.get("userName");
             String userName = (String) userNameData.get("lastName") + userNameData.get("firstName");
-            
+
             // 조직 정보
             List<Map<String, Object>> organizations = (List<Map<String, Object>>) responseMap.get("organizations");
             List<Map<String, Object>> orgUnit = new ArrayList<>();  // 부서 정보

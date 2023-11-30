@@ -2,9 +2,9 @@ package naverworks.common.service.impl;
 
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
-import egovframework.naverworks.common.service.JWTService;
-import egovframework.naverworks.common.util.WorksClientUtils;
-import egovframework.naverworks.common.vo.NaverWorksAppInfoVO;
+import naverworks.common.service.JWTService;
+import naverworks.common.util.WorksClientUtils;
+import naverworks.common.vo.NaverWorksAppInfoVO;
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.lang3.StringUtils;
@@ -104,12 +104,12 @@ public class JWTServiceImpl implements JWTService {
         RSAPrivateKey privateKey = getPrivateKeyFromString(serverPrivateKey);
         Algorithm algorithmRS = Algorithm.RSA256(publicKey, privateKey);
         String assertion = JWT.create()
-                                .withHeader(headers)
-                                .withIssuer(clientId)
-                                .withSubject(serviceAccount)
-                                .withIssuedAt(iat)
-                                .withExpiresAt(exp)
-                                .sign(algorithmRS);
+                .withHeader(headers)
+                .withIssuer(clientId)
+                .withSubject(serviceAccount)
+                .withIssuedAt(iat)
+                .withExpiresAt(exp)
+                .sign(algorithmRS);
 
         // Parameter
         List<NameValuePair> params = new ArrayList<NameValuePair>();

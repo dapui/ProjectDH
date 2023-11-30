@@ -1,9 +1,9 @@
 package naverworks.bot.task;
 
-import egovframework.naverworks.bot.service.BotMessageService;
-import egovframework.naverworks.common.service.JWTService;
-import egovframework.naverworks.common.vo.NaverWorksAppInfoVO;
-import egovframework.naverworks.common.vo.ResponseDataVO;
+import naverworks.bot.service.BotMessageService;
+import naverworks.common.service.JWTService;
+import naverworks.common.vo.NaverWorksAppInfoVO;
+import naverworks.common.vo.ResponseDataVO;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

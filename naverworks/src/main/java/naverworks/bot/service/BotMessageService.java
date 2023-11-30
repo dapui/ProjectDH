@@ -1,32 +1,21 @@
 package naverworks.bot.service;
 
-import egovframework.naverworks.bot.vo.ApprovalRequestDataVO;
-import egovframework.naverworks.bot.vo.BirthdayUserInfoVO;
-import egovframework.naverworks.bot.vo.BoardRequestDataVO;
-import egovframework.naverworks.common.vo.ResponseDataVO;
+import naverworks.bot.vo.ApprovalRequestDataVO;
+import naverworks.bot.vo.BirthdayUserInfoVO;
+import naverworks.bot.vo.BoardRequestDataVO;
+import naverworks.common.vo.ResponseDataVO;
 
-import java.text.ParseException;
 import java.util.List;
 import java.util.Map;
 
 public interface BotMessageService {
 
-    /* 전자결재 알림 봇 호출 */
+    /** 전자결재 알림 봇 호출 */
     public ResponseDataVO callApprovalBot(String token, String botId, ApprovalRequestDataVO approvalRequestData) throws Exception;
     /* 생일 알림 봇 호출 */
     public ResponseDataVO callBirthdayBot(String token, String botId);
-    /* 게시판 알림 봇 호출 */
+    /** 게시판 알림 봇 호출 */
     public ResponseDataVO callBoardBot(String token, String botId, BoardRequestDataVO boardRequestData) throws Exception;
-    /**  전자결재 알림 메세지 템플릿 JSON */
-    public Map<String, Object> approvalMessageTemplate(ApprovalRequestDataVO userInfo);
-    /**  전자결재 알림 메세지 템플릿 JSON - API 호출 시 간편 결재 url이 없을 경우 */
-    public Map<String, Object> approvalWithoutEasyApprovalMessageTemplate(ApprovalRequestDataVO approvalInfo);
-    /** 생일자 알림 메세지 템플릿 JSON */
-    public Map<String, Object> birthdayMessageTemplate(BirthdayUserInfoVO userInfo) throws Exception;
-    /** 게시판 알림 메세지 템플릿 JSON */
-    public Map<String, Object> boardMessageTemplate(BoardRequestDataVO boardInfo) throws Exception;
-    /** json -> map 변환 */
-    public Map<String, Object> jsonToMap(StringBuffer json) throws Exception;
     /** NAVER WORKS API 호출하여 구성원의 프로필 정보 조회 */
     public BirthdayUserInfoVO searchUserInfo(String userId);
     /* NAVER WORKS API 호출하여 구성원 사진 조회 */
